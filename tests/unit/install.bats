@@ -89,3 +89,38 @@ setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"could not resolve"* ]]
 }
+
+@test "verify_checksum passes for a matching file" {
+  local tmp; tmp="$(mktemp -d)"
+  echo "hello orchstep" > "${tmp}/asset.tar.gz"
+  local hash
+  if command -v sha256sum >/dev/null 2>&1; then
+    hash="$(sha256sum "${tmp}/asset.tar.gz" | awk '{print $1}')"
+  else
+    hash="$(shasum -a 256 "${tmp}/asset.tar.gz" | awk '{print $1}')"
+  fi
+  printf '%s  asset.tar.gz\n' "$hash" > "${tmp}/checksums.txt"
+  run verify_checksum "${tmp}/asset.tar.gz" "${tmp}/checksums.txt" "asset.tar.gz"
+  [ "$status" -eq 0 ]
+  rm -rf "$tmp"
+}
+
+@test "verify_checksum fails on a mismatch" {
+  local tmp; tmp="$(mktemp -d)"
+  echo "tampered" > "${tmp}/asset.tar.gz"
+  printf '%s  asset.tar.gz\n' "0000000000000000000000000000000000000000000000000000000000000000" > "${tmp}/checksums.txt"
+  run verify_checksum "${tmp}/asset.tar.gz" "${tmp}/checksums.txt" "asset.tar.gz"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"checksum mismatch"* ]]
+  rm -rf "$tmp"
+}
+
+@test "verify_checksum fails when the asset has no checksum entry" {
+  local tmp; tmp="$(mktemp -d)"
+  echo "data" > "${tmp}/asset.tar.gz"
+  printf '%s  other-file.tar.gz\n' "abc123" > "${tmp}/checksums.txt"
+  run verify_checksum "${tmp}/asset.tar.gz" "${tmp}/checksums.txt" "asset.tar.gz"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"no checksum entry"* ]]
+  rm -rf "$tmp"
+}

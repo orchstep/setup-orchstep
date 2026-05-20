@@ -71,6 +71,27 @@ resolve_version() {
   esac
 }
 
+verify_checksum() {
+  local file="$1" checksums="$2" name="$3"
+  local expected actual
+  # GoReleaser checksums.txt format: "<sha256>  <filename>"
+  expected="$(grep -E "  ${name}\$" "$checksums" | awk '{print $1}' | head -1)"
+  if [[ -z "$expected" ]]; then
+    echo "ERROR: no checksum entry for '${name}' in checksums.txt" >&2
+    return 1
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual="$(sha256sum "$file" | awk '{print $1}')"
+  else
+    actual="$(shasum -a 256 "$file" | awk '{print $1}')"
+  fi
+  if [[ "$expected" != "$actual" ]]; then
+    echo "ERROR: checksum mismatch for '${name}': expected ${expected}, got ${actual}" >&2
+    return 1
+  fi
+  echo "checksum verified for ${name}"
+}
+
 main() {
   set -euo pipefail
   echo "main not yet implemented" >&2
