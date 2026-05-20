@@ -109,10 +109,89 @@ download_asset() {
   return 1
 }
 
+do_plan() {
+  local version platform os arch install_dir
+  version="$(resolve_version "${INPUT_VERSION:-latest}")"
+  platform="$(detect_platform)"
+  os="${platform%/*}"
+  arch="${platform#*/}"
+  if [[ -n "${INPUT_INSTALL_DIR:-}" ]]; then
+    install_dir="${INPUT_INSTALL_DIR}"
+  else
+    install_dir="${RUNNER_TOOL_CACHE:-/tmp/orchstep-toolcache}/orchstep/${version}/${arch}"
+  fi
+  {
+    echo "version=${version}"
+    echo "os=${os}"
+    echo "arch=${arch}"
+    echo "cache-key=$(cache_key "$os" "$arch" "$version")"
+    echo "install-dir=${install_dir}"
+  } >> "${GITHUB_OUTPUT:-/dev/stdout}"
+}
+
+do_install() {
+  local version="${PLAN_VERSION:?PLAN_VERSION is required}"
+  local os="${PLAN_OS:?PLAN_OS is required}"
+  local arch="${PLAN_ARCH:?PLAN_ARCH is required}"
+  local install_dir="${PLAN_INSTALL_DIR:?PLAN_INSTALL_DIR is required}"
+  local bin_name="orchstep"
+  [[ "$os" == "windows" ]] && bin_name="orchstep.exe"
+  local bin_path="${install_dir}/${bin_name}"
+  local cache_hit="false"
+
+  if [[ -x "$bin_path" ]]; then
+    cache_hit="true"
+    echo "::notice::OrchStep ${version} restored from cache"
+  else
+    mkdir -p "$install_dir"
+    local ext="tar.gz"
+    [[ "$os" == "windows" ]] && ext="zip"
+    local asset="orchstep_${version}_${os}_${arch}.${ext}"
+    local tmp
+    tmp="$(mktemp -d)"
+    download_asset "$(asset_url_for "$version" "$os" "$arch")" "${tmp}/${asset}"
+    download_asset "$(checksums_url_for "$version")" "${tmp}/checksums.txt"
+    verify_checksum "${tmp}/${asset}" "${tmp}/checksums.txt" "$asset"
+    if [[ "$ext" == "zip" ]]; then
+      unzip -o "${tmp}/${asset}" -d "$tmp" >/dev/null
+    else
+      tar -xzf "${tmp}/${asset}" -C "$tmp"
+    fi
+    mv "${tmp}/${bin_name}" "$bin_path"
+    chmod +x "$bin_path"
+    rm -rf "$tmp"
+    echo "::notice::OrchStep ${version} installed to ${install_dir}"
+  fi
+
+  local reported
+  reported="$("$bin_path" version 2>&1 | head -1 || true)"
+  if [[ "$reported" != *"$version"* ]]; then
+    echo "ERROR: smoke test failed — '${bin_path} version' reported '${reported}', expected to contain '${version}'" >&2
+    return 1
+  fi
+
+  if [[ "${INPUT_ADD_TO_PATH:-true}" == "true" ]]; then
+    echo "$install_dir" >> "${GITHUB_PATH:-/dev/stdout}"
+  fi
+
+  {
+    echo "version=${version}"
+    echo "cache-hit=${cache_hit}"
+    echo "install-dir=${install_dir}"
+  } >> "${GITHUB_OUTPUT:-/dev/stdout}"
+}
+
 main() {
   set -euo pipefail
-  echo "main not yet implemented" >&2
-  return 1
+  local mode="${1:-install}"
+  case "$mode" in
+    plan)    do_plan ;;
+    install) do_install ;;
+    *)
+      echo "ERROR: unknown mode '${mode}' (expected 'plan' or 'install')" >&2
+      exit 1
+      ;;
+  esac
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

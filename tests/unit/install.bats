@@ -144,3 +144,24 @@ setup() {
   [[ "$output" == *"failed to download"* ]]
   rm -rf "$tmp"
 }
+
+@test "do_plan writes resolved fields to GITHUB_OUTPUT" {
+  local tmp; tmp="$(mktemp -d)"
+  _fetch_latest_tag() { echo "v2.0.1"; }
+  INPUT_VERSION="latest" \
+  INPUT_INSTALL_DIR="${tmp}/install" \
+  RUNNER_TOOL_CACHE="${tmp}/toolcache" \
+  GITHUB_OUTPUT="${tmp}/out" \
+    run bash -c 'source '"${BATS_TEST_DIRNAME}"'/../../install.sh; _fetch_latest_tag() { echo v2.0.1; }; do_plan'
+  [ "$status" -eq 0 ]
+  grep -q "version=2.0.1" "${tmp}/out"
+  grep -q "cache-key=orchstep-" "${tmp}/out"
+  grep -q "install-dir=${tmp}/install" "${tmp}/out"
+  rm -rf "$tmp"
+}
+
+@test "main rejects an unknown mode" {
+  run bash "${BATS_TEST_DIRNAME}/../../install.sh" bogus-mode
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"unknown mode"* ]]
+}
