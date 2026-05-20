@@ -25,6 +25,16 @@ detect_platform() {
   echo "${os}/${arch}"
 }
 
+asset_url_for() {
+  local version="$1" os="$2" arch="$3" ext="tar.gz"
+  [[ "$os" == "windows" ]] && ext="zip"
+  echo "https://github.com/orchstep/orchstep/releases/download/v${version}/orchstep_${version}_${os}_${arch}.${ext}"
+}
+
+checksums_url_for() {
+  echo "https://github.com/orchstep/orchstep/releases/download/v${1}/checksums.txt"
+}
+
 main() {
   set -euo pipefail
   echo "main not yet implemented" >&2

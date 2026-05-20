@@ -39,3 +39,21 @@ setup() {
   [ "$status" -eq 1 ]
   [[ "$output" == *"unsupported OS"* ]]
 }
+
+@test "asset_url_for builds a tar.gz url for linux" {
+  run asset_url_for 1.2.3 linux amd64
+  [ "$status" -eq 0 ]
+  [ "$output" = "https://github.com/orchstep/orchstep/releases/download/v1.2.3/orchstep_1.2.3_linux_amd64.tar.gz" ]
+}
+
+@test "asset_url_for builds a zip url for windows" {
+  run asset_url_for 1.2.3 windows amd64
+  [ "$status" -eq 0 ]
+  [ "$output" = "https://github.com/orchstep/orchstep/releases/download/v1.2.3/orchstep_1.2.3_windows_amd64.zip" ]
+}
+
+@test "checksums_url_for builds the checksums url" {
+  run checksums_url_for 1.2.3
+  [ "$status" -eq 0 ]
+  [ "$output" = "https://github.com/orchstep/orchstep/releases/download/v1.2.3/checksums.txt" ]
+}
