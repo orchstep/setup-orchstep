@@ -7,6 +7,9 @@ cache_key() {
   echo "orchstep-$1-$2-$3"
 }
 
+# Args are optional-for-testing: bats passes os/arch explicitly, production
+# calls with none and falls back to `uname`. Silence the unused-args warning.
+# shellcheck disable=SC2120
 detect_platform() {
   local os arch
   os="${1:-$(uname -s)}"
@@ -112,6 +115,7 @@ download_asset() {
 do_plan() {
   local version platform os arch install_dir
   version="$(resolve_version "${INPUT_VERSION:-latest}")"
+  # shellcheck disable=SC2119
   platform="$(detect_platform)"
   os="${platform%/*}"
   arch="${platform#*/}"
