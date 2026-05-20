@@ -1,0 +1,14 @@
+name: negative
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  supply-chain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run supply-chain negative tests
+        run: bash tests/negative/run_negative.sh
