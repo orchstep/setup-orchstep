@@ -1,0 +1,5 @@
+# markdownlint configuration.
+# MD013 (line length) is disabled: README tables contain values such as
+# `${{ github.token }}` that cannot be wrapped without breaking the table.
+default: true
+MD013: false

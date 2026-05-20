@@ -1,0 +1,35 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (semver, no v prefix)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag immutable version and move floating major
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          MAJOR="v${VERSION%%.*}"
+          git tag "v${VERSION}"
+          git tag -f "${MAJOR}"
+          git push origin "v${VERSION}"
+          git push -f origin "${MAJOR}"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          generate_release_notes: true
