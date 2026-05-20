@@ -1,0 +1,17 @@
+name: go-ci-example
+desc: Example OrchStep workflow for a Go project
+
+tasks:
+  main:
+    desc: Default task
+    steps:
+      - name: go_version
+        desc: Print the Go version
+        func: shell
+        args:
+          cmd: go version
+      - name: greet
+        desc: Confirm OrchStep ran
+        func: shell
+        args:
+          cmd: echo 'OrchStep ran in CI'

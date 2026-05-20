@@ -1,0 +1,17 @@
+name: node-ci-example
+desc: Example OrchStep workflow for a Node.js project
+
+tasks:
+  main:
+    desc: Default task
+    steps:
+      - name: node_version
+        desc: Print the Node.js version
+        func: shell
+        args:
+          cmd: node --version
+      - name: greet
+        desc: Confirm OrchStep ran
+        func: shell
+        args:
+          cmd: echo 'OrchStep ran in CI'
