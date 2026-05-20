@@ -92,6 +92,23 @@ verify_checksum() {
   echo "checksum verified for ${name}"
 }
 
+download_asset() {
+  local url="$1" dest="$2" attempt=1 max=3
+  local sleep_base="${ORCHSTEP_RETRY_SLEEP:-2}"
+  while (( attempt <= max )); do
+    if curl -fsSL -o "$dest" "$url" && [[ -s "$dest" ]]; then
+      return 0
+    fi
+    echo "WARN: download failed (attempt ${attempt}/${max}): ${url}" >&2
+    if (( attempt < max )); then
+      sleep $(( attempt * sleep_base ))
+    fi
+    (( attempt++ ))
+  done
+  echo "ERROR: failed to download ${url} after ${max} attempts" >&2
+  return 1
+}
+
 main() {
   set -euo pipefail
   echo "main not yet implemented" >&2

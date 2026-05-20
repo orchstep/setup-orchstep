@@ -124,3 +124,23 @@ setup() {
   [[ "$output" == *"no checksum entry"* ]]
   rm -rf "$tmp"
 }
+
+@test "download_asset succeeds on the first try" {
+  local tmp; tmp="$(mktemp -d)"
+  curl() { echo "payload" > "${tmp}/out"; return 0; }
+  export -f curl
+  run download_asset "http://example/x" "${tmp}/out"
+  [ "$status" -eq 0 ]
+  [ -s "${tmp}/out" ]
+  rm -rf "$tmp"
+}
+
+@test "download_asset retries then fails after 3 attempts" {
+  local tmp; tmp="$(mktemp -d)"
+  curl() { return 22; }
+  export -f curl
+  ORCHSTEP_RETRY_SLEEP=0 run download_asset "http://example/x" "${tmp}/out"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"failed to download"* ]]
+  rm -rf "$tmp"
+}
