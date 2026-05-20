@@ -1,0 +1,86 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+      - name: Run bats unit tests
+        run: bats tests/unit/install.bats
+
+  install-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-22.04, macos-latest, macos-14, windows-latest, windows-2022]
+        version: [latest, "0.5.0"]
+        cache: [true, false]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup OrchStep
+        id: setup
+        uses: ./
+        with:
+          version: ${{ matrix.version }}
+          cache: ${{ matrix.cache }}
+      - name: Assert orchstep is on PATH and runs
+        shell: bash
+        run: |
+          orchstep version
+          echo "resolved=${{ steps.setup.outputs.version }}"
+          test -n "${{ steps.setup.outputs.version }}"
+
+  cache-hit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: First install
+        uses: ./
+        with:
+          version: "0.5.0"
+      - name: Second install (same job — tool cache hit)
+        id: second
+        uses: ./
+        with:
+          version: "0.5.0"
+      - name: Assert cache hit
+        shell: bash
+        run: |
+          test "${{ steps.second.outputs.cache-hit }}" = "true"
+
+  bad-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install a nonexistent version (must fail)
+        id: bad
+        continue-on-error: true
+        uses: ./
+        with:
+          version: "99.99.99"
+      - name: Assert the action failed
+        shell: bash
+        run: |
+          test "${{ steps.bad.outcome }}" = "failure"
+
+  self-hosted-sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install without sudo, custom install dir
+        uses: ./
+        with:
+          version: "0.5.0"
+          install-dir: ${{ runner.temp }}/orchstep-nosudo
+      - name: Assert binary exists and runs
+        shell: bash
+        run: |
+          "${{ runner.temp }}/orchstep-nosudo/orchstep" version
