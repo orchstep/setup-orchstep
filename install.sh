@@ -75,7 +75,7 @@ verify_checksum() {
   local file="$1" checksums="$2" name="$3"
   local expected actual
   # GoReleaser checksums.txt format: "<sha256>  <filename>"
-  expected="$(grep -E "  ${name}\$" "$checksums" | awk '{print $1}' | head -1)"
+  expected="$(awk -v n="$name" '$2 == n {print $1}' "$checksums" | head -1)"
   if [[ -z "$expected" ]]; then
     echo "ERROR: no checksum entry for '${name}' in checksums.txt" >&2
     return 1
@@ -149,17 +149,23 @@ do_install() {
     local asset="orchstep_${version}_${os}_${arch}.${ext}"
     local tmp
     tmp="$(mktemp -d)"
+    # Self-disarming so the trap fires exactly once, on this function's return,
+    # rather than leaking into every subsequent function return in the shell.
+    trap 'rm -rf "$tmp"; trap - RETURN' RETURN
     download_asset "$(asset_url_for "$version" "$os" "$arch")" "${tmp}/${asset}"
     download_asset "$(checksums_url_for "$version")" "${tmp}/checksums.txt"
     verify_checksum "${tmp}/${asset}" "${tmp}/checksums.txt" "$asset"
     if [[ "$ext" == "zip" ]]; then
-      unzip -o "${tmp}/${asset}" -d "$tmp" >/dev/null
+      unzip -o -j "${tmp}/${asset}" "$bin_name" -d "$tmp" >/dev/null
     else
-      tar -xzf "${tmp}/${asset}" -C "$tmp"
+      tar -xzf "${tmp}/${asset}" -C "$tmp" "$bin_name"
+    fi
+    if [[ ! -f "${tmp}/${bin_name}" ]]; then
+      echo "ERROR: '${bin_name}' not found in ${asset}" >&2
+      return 1
     fi
     mv "${tmp}/${bin_name}" "$bin_path"
     chmod +x "$bin_path"
-    rm -rf "$tmp"
     echo "::notice::OrchStep ${version} installed to ${install_dir}"
   fi
 

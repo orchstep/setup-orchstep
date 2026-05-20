@@ -165,3 +165,86 @@ setup() {
   [ "$status" -ne 0 ]
   [[ "$output" == *"unknown mode"* ]]
 }
+
+@test "do_install uses the cached binary when present" {
+  local tmp; tmp="$(mktemp -d)"
+  mkdir -p "${tmp}/install"
+  cat > "${tmp}/install/orchstep" <<'EOF'
+#!/usr/bin/env bash
+echo "orchstep version 1.2.3"
+EOF
+  chmod +x "${tmp}/install/orchstep"
+  PLAN_VERSION=1.2.3 PLAN_OS=linux PLAN_ARCH=amd64 \
+  PLAN_INSTALL_DIR="${tmp}/install" \
+  GITHUB_OUTPUT="${tmp}/out" GITHUB_PATH="${tmp}/path" \
+    run do_install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"restored from cache"* ]]
+  grep -q "cache-hit=true" "${tmp}/out"
+  grep -q "version=1.2.3" "${tmp}/out"
+  grep -qx "${tmp}/install" "${tmp}/path"
+  rm -rf "$tmp"
+}
+
+@test "do_install downloads, extracts, and installs a fresh binary" {
+  local tmp; tmp="$(mktemp -d)"
+
+  # Stub download_asset: drop a real tar.gz containing a fake orchstep binary,
+  # and a valid checksums.txt for that archive.
+  download_asset() {
+    local url="$1" dest="$2"
+    case "$dest" in
+      *checksums.txt)
+        local asset_dir asset_name
+        asset_dir="$(dirname "$dest")"
+        asset_name="orchstep_1.2.3_linux_amd64.tar.gz"
+        local hash
+        if command -v sha256sum >/dev/null 2>&1; then
+          hash="$(sha256sum "${asset_dir}/${asset_name}" | awk '{print $1}')"
+        else
+          hash="$(shasum -a 256 "${asset_dir}/${asset_name}" | awk '{print $1}')"
+        fi
+        printf '%s  %s\n' "$hash" "$asset_name" > "$dest"
+        ;;
+      *.tar.gz)
+        local build; build="$(mktemp -d)"
+        cat > "${build}/orchstep" <<'EOF'
+#!/usr/bin/env bash
+echo "orchstep version 1.2.3"
+EOF
+        chmod +x "${build}/orchstep"
+        tar -czf "$dest" -C "$build" orchstep
+        rm -rf "$build"
+        ;;
+    esac
+    return 0
+  }
+
+  PLAN_VERSION=1.2.3 PLAN_OS=linux PLAN_ARCH=amd64 \
+  PLAN_INSTALL_DIR="${tmp}/install" \
+  GITHUB_OUTPUT="${tmp}/out" GITHUB_PATH="${tmp}/path" \
+    run do_install
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"installed to"* ]]
+  [ -x "${tmp}/install/orchstep" ]
+  grep -q "cache-hit=false" "${tmp}/out"
+  grep -q "version=1.2.3" "${tmp}/out"
+  rm -rf "$tmp"
+}
+
+@test "do_install fails when the smoke test reports the wrong version" {
+  local tmp; tmp="$(mktemp -d)"
+  mkdir -p "${tmp}/install"
+  cat > "${tmp}/install/orchstep" <<'EOF'
+#!/usr/bin/env bash
+echo "orchstep version 9.9.9"
+EOF
+  chmod +x "${tmp}/install/orchstep"
+  PLAN_VERSION=1.2.3 PLAN_OS=linux PLAN_ARCH=amd64 \
+  PLAN_INSTALL_DIR="${tmp}/install" \
+  GITHUB_OUTPUT="${tmp}/out" GITHUB_PATH="${tmp}/path" \
+    run do_install
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"smoke test failed"* ]]
+  rm -rf "$tmp"
+}
