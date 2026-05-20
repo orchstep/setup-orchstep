@@ -1,0 +1,71 @@
+name: 'Setup OrchStep'
+description: 'Install the OrchStep CLI for workflow orchestration'
+author: 'OrchStep'
+
+branding:
+  icon: 'terminal'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'Version to install: "latest" or a semver such as 1.2.3'
+    required: false
+    default: 'latest'
+  token:
+    description: 'GitHub token used for release API lookups'
+    required: false
+    default: ${{ github.token }}
+  cache:
+    description: 'Cache the installed binary across runs'
+    required: false
+    default: 'true'
+  add-to-path:
+    description: 'Append the install directory to PATH'
+    required: false
+    default: 'true'
+  install-dir:
+    description: 'Install directory (default: the runner tool cache)'
+    required: false
+    default: ''
+
+outputs:
+  version:
+    description: 'The resolved version that was installed'
+    value: ${{ steps.install.outputs.version }}
+  cache-hit:
+    description: 'Whether a cached binary was reused'
+    value: ${{ steps.install.outputs.cache-hit }}
+  install-dir:
+    description: 'Absolute path to the install directory'
+    value: ${{ steps.install.outputs.install-dir }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Resolve install plan
+      id: plan
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_INSTALL_DIR: ${{ inputs.install-dir }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: bash "${{ github.action_path }}/install.sh" plan
+
+    - name: Restore cached binary
+      id: cache
+      if: ${{ inputs.cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.plan.outputs.install-dir }}
+        key: ${{ steps.plan.outputs.cache-key }}
+
+    - name: Install OrchStep
+      id: install
+      shell: bash
+      env:
+        PLAN_VERSION: ${{ steps.plan.outputs.version }}
+        PLAN_OS: ${{ steps.plan.outputs.os }}
+        PLAN_ARCH: ${{ steps.plan.outputs.arch }}
+        PLAN_INSTALL_DIR: ${{ steps.plan.outputs.install-dir }}
+        INPUT_ADD_TO_PATH: ${{ inputs.add-to-path }}
+      run: bash "${{ github.action_path }}/install.sh" install
