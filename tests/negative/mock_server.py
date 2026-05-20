@@ -30,12 +30,18 @@ def build_tarball() -> bytes:
 
 TARBALL = build_tarball()
 ASSET = "orchstep_9.9.9_linux_amd64.tar.gz"
+# The body actually served for the asset request. For "truncated" mode this is
+# a half-length (corrupt) tarball; for every other mode it is the full tarball.
+SERVED_BODY = TARBALL[: len(TARBALL) // 2] if MODE == "truncated" else TARBALL
 
 
 def checksums_body() -> bytes:
-    real = hashlib.sha256(TARBALL).hexdigest()
     if MODE == "wrong-checksum":
         return f"{'0' * 64}  {ASSET}\n".encode()
+    # For "truncated" mode, publish the checksum of the *truncated* body so that
+    # checksum verification passes and the failure must occur later, at tar
+    # extraction. For every other mode the checksum matches the served body.
+    real = hashlib.sha256(SERVED_BODY).hexdigest()
     if MODE == "missing-entry":
         return f"{real}  some-other-file.tar.gz\n".encode()
     return f"{real}  {ASSET}\n".encode()
@@ -44,7 +50,7 @@ def checksums_body() -> bytes:
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         if self.path.endswith(ASSET):
-            body = TARBALL[: len(TARBALL) // 2] if MODE == "truncated" else TARBALL
+            body = SERVED_BODY
             self.send_response(200)
             self.send_header("Content-Type", "application/gzip")
             self.end_headers()

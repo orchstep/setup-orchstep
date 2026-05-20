@@ -6,6 +6,7 @@ your jobs can run YAML-first workflow orchestration.
 ## Quick Start
 
 ```yaml
+- uses: actions/checkout@v4
 - uses: orchstep/setup-orchstep@v1
 - run: orchstep run
 ```

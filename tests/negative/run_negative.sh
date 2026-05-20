@@ -12,14 +12,24 @@ run_case() {
   local mode="$1" port="$2"
   python3 "${ROOT}/tests/negative/mock_server.py" "$mode" "$port" &
   local server_pid=$!
-  sleep 1
+  # Poll for readiness instead of a fixed sleep — robust on a loaded runner.
+  for _ in $(seq 1 50); do
+    curl -fsS -o /dev/null "http://127.0.0.1:${port}/checksums.txt" && break
+    sleep 0.1
+  done
   local tmp; tmp="$(mktemp -d)"
   local rc=0
+  # NOTE: `set -e` is intentionally not relied on here — when a subshell sits
+  # on the left of `||`, bash disables errexit throughout it. Each step is
+  # chained explicitly so any non-zero stops the pipeline.
   (
-    set -e
-    download_asset "http://127.0.0.1:${port}/orchstep_9.9.9_linux_amd64.tar.gz" "${tmp}/asset.tar.gz"
-    download_asset "http://127.0.0.1:${port}/checksums.txt" "${tmp}/checksums.txt"
-    verify_checksum "${tmp}/asset.tar.gz" "${tmp}/checksums.txt" "orchstep_9.9.9_linux_amd64.tar.gz"
+    download_asset "http://127.0.0.1:${port}/orchstep_9.9.9_linux_amd64.tar.gz" "${tmp}/asset.tar.gz" &&
+    download_asset "http://127.0.0.1:${port}/checksums.txt" "${tmp}/checksums.txt" &&
+    verify_checksum "${tmp}/asset.tar.gz" "${tmp}/checksums.txt" "orchstep_9.9.9_linux_amd64.tar.gz" &&
+    # For wrong-checksum/missing-entry the line above already failed; for
+    # truncated, verification passes and the corrupt archive fails here.
+    mkdir -p "${tmp}/extracted" &&
+    tar -xzf "${tmp}/asset.tar.gz" -C "${tmp}/extracted"
   ) || rc=$?
   kill "$server_pid" 2>/dev/null || true
   rm -rf "$tmp"

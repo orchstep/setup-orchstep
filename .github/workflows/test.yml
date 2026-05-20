@@ -56,6 +56,29 @@ jobs:
         run: |
           test "${{ steps.second.outputs.cache-hit }}" = "true"
 
+  cross-run-cache-seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed the actions/cache entry
+        uses: ./
+        with:
+          version: "0.5.0"
+
+  cross-run-cache-restore:
+    needs: cross-run-cache-seed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install again — should restore from actions/cache
+        id: restore
+        uses: ./
+        with:
+          version: "0.5.0"
+      - name: Assert cache-hit
+        shell: bash
+        run: test "${{ steps.restore.outputs.cache-hit }}" = "true"
+
   bad-version:
     runs-on: ubuntu-latest
     steps:

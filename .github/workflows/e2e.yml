@@ -20,6 +20,16 @@ jobs:
         uses: ./
         with:
           version: latest
+      - name: Setup Node.js
+        if: matrix.example == 'node-ci'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Setup Go
+        if: matrix.example == 'go-ci'
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
       - name: Run the example workflow
         working-directory: examples/${{ matrix.example }}
         run: orchstep run
