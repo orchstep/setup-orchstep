@@ -149,12 +149,15 @@ do_install() {
     local asset="orchstep_${version}_${os}_${arch}.${ext}"
     local tmp
     tmp="$(mktemp -d)"
-    # Self-disarming so the trap fires exactly once, on this function's return,
-    # rather than leaking into every subsequent function return in the shell.
+    # Fires once on do_install's return to clean up the temp dir on any path;
+    # `trap - RETURN` disarms it so it cannot fire again (defensive — also
+    # correct should `set -o functrace` ever be enabled).
     trap 'rm -rf "$tmp"; trap - RETURN' RETURN
-    download_asset "$(asset_url_for "$version" "$os" "$arch")" "${tmp}/${asset}"
-    download_asset "$(checksums_url_for "$version")" "${tmp}/checksums.txt"
-    verify_checksum "${tmp}/${asset}" "${tmp}/checksums.txt" "$asset"
+    download_asset "$(asset_url_for "$version" "$os" "$arch")" "${tmp}/${asset}" || return 1
+    download_asset "$(checksums_url_for "$version")" "${tmp}/checksums.txt" || return 1
+    # Gate: extraction must not proceed unless the checksum verifies. Checked
+    # explicitly so this holds even when do_install runs without `set -e`.
+    verify_checksum "${tmp}/${asset}" "${tmp}/checksums.txt" "$asset" || return 1
     if [[ "$ext" == "zip" ]]; then
       unzip -o -j "${tmp}/${asset}" "$bin_name" -d "$tmp" >/dev/null
     else

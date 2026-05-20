@@ -232,6 +232,45 @@ EOF
   rm -rf "$tmp"
 }
 
+@test "do_install fails on a checksum mismatch before extracting the binary" {
+  local tmp; tmp="$(mktemp -d)"
+
+  # Stub download_asset: drop a real tar.gz containing a fake orchstep binary,
+  # but a checksums.txt that records a WRONG hash for that archive.
+  download_asset() {
+    local url="$1" dest="$2"
+    case "$dest" in
+      *checksums.txt)
+        local asset_name="orchstep_1.2.3_linux_amd64.tar.gz"
+        printf '%s  %s\n' \
+          "0000000000000000000000000000000000000000000000000000000000000000" \
+          "$asset_name" > "$dest"
+        ;;
+      *.tar.gz)
+        local build; build="$(mktemp -d)"
+        cat > "${build}/orchstep" <<'EOF'
+#!/usr/bin/env bash
+echo "orchstep version 1.2.3"
+EOF
+        chmod +x "${build}/orchstep"
+        tar -czf "$dest" -C "$build" orchstep
+        rm -rf "$build"
+        ;;
+    esac
+    return 0
+  }
+
+  PLAN_VERSION=1.2.3 PLAN_OS=linux PLAN_ARCH=amd64 \
+  PLAN_INSTALL_DIR="${tmp}/install" \
+  GITHUB_OUTPUT="${tmp}/out" GITHUB_PATH="${tmp}/path" \
+    run do_install
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"checksum mismatch"* ]]
+  # Extraction must not have happened — verification gates extraction.
+  [ ! -e "${tmp}/install/orchstep" ]
+  rm -rf "$tmp"
+}
+
 @test "do_install fails when the smoke test reports the wrong version" {
   local tmp; tmp="$(mktemp -d)"
   mkdir -p "${tmp}/install"
