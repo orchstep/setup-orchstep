@@ -57,3 +57,35 @@ setup() {
   [ "$status" -eq 0 ]
   [ "$output" = "https://github.com/orchstep/orchstep/releases/download/v1.2.3/checksums.txt" ]
 }
+
+@test "resolve_version strips v prefix from semver" {
+  run resolve_version v1.2.3
+  [ "$status" -eq 0 ]
+  [ "$output" = "1.2.3" ]
+}
+
+@test "resolve_version accepts bare semver" {
+  run resolve_version 1.2.3
+  [ "$status" -eq 0 ]
+  [ "$output" = "1.2.3" ]
+}
+
+@test "resolve_version resolves latest via _fetch_latest_tag" {
+  _fetch_latest_tag() { echo "v1.4.2"; }
+  run resolve_version latest
+  [ "$status" -eq 0 ]
+  [ "$output" = "1.4.2" ]
+}
+
+@test "resolve_version fails on garbage input" {
+  run resolve_version "not-a-version"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid version"* ]]
+}
+
+@test "resolve_version fails when latest cannot be resolved" {
+  _fetch_latest_tag() { echo ""; }
+  run resolve_version latest
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"could not resolve"* ]]
+}

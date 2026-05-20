@@ -35,6 +35,42 @@ checksums_url_for() {
   echo "https://github.com/orchstep/orchstep/releases/download/v${1}/checksums.txt"
 }
 
+_fetch_latest_tag() {
+  local api="${GITHUB_API_URL:-https://api.github.com}"
+  local auth=()
+  [[ -n "${GITHUB_TOKEN:-}" ]] && auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+  curl -fsSL "${auth[@]}" "${api}/repos/orchstep/orchstep/releases/latest" \
+    | grep '"tag_name"' | head -1 \
+    | sed -E 's/.*"tag_name"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/'
+}
+
+resolve_version() {
+  local input="$1"
+  case "$input" in
+    latest)
+      local tag
+      tag="$(_fetch_latest_tag)"
+      if [[ -z "$tag" ]]; then
+        echo "ERROR: could not resolve latest version from GitHub API" >&2
+        return 1
+      fi
+      echo "${tag#v}"
+      ;;
+    v[0-9]*|[0-9]*)
+      local stripped="${input#v}"
+      if [[ ! "$stripped" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+        echo "ERROR: invalid version '$input' (expected semver like 1.2.3)" >&2
+        return 1
+      fi
+      echo "$stripped"
+      ;;
+    *)
+      echo "ERROR: invalid version '$input' (expected 'latest' or a semver)" >&2
+      return 1
+      ;;
+  esac
+}
+
 main() {
   set -euo pipefail
   echo "main not yet implemented" >&2
